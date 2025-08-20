@@ -1,3 +1,3 @@
-package ${package};
+package ${PACKAGE};
 
-public record ${Name}(String field) {}
+public record ${NAME}(String field) {}

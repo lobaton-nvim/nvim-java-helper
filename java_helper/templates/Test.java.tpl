@@ -1,12 +1,11 @@
-package ${package};
+package ${PACKAGE};
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class ${Name}Test {
-
+public class ${NAME}Test {
     @Test
-    public void test{{Name}}() {
+    public void test${NAME}() {
         // TODO: implementar
         assertTrue(true);
     }

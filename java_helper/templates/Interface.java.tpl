@@ -1,5 +1,5 @@
 package ${PACKAGE};
 
-public interface ${Name} {
+public interface ${NAME} {
     void execute();
 }

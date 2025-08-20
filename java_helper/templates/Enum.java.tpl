@@ -1,6 +1,6 @@
-package ${package};
+package ${PACKAGE};
 
-public enum ${Name} {
+public enum ${NAME} {
     VALUE1,
     VALUE2,
     VALUE3;

@@ -1,12 +1,10 @@
--- lua/java_helper/commands.lua
-
 local api = vim.api
 local fn = vim.fn
 local config = require("java_helper").config
 
 -- 1) Detecta paquete base y directorio a partir de *Application.java o *Main.java
 local function find_base_package(root)
-	-- override manual (init.lua)
+	-- override manual (desde setup)
 	if config.base_package or config.base_path then
 		local pkg = config.base_package or ""
 		local path = fn.fnamemodify(root .. "/" .. (config.base_path or "src/main/java"), ":p")
@@ -23,16 +21,20 @@ local function find_base_package(root)
 	end
 
 	local app = apps[1]
-	local rel = app:sub(#src + 2) -- quita ".../src/main/java/"
-	local dir = fn.fnamemodify(rel, ":h") -- carpeta que contiene el archivo
-	local pkg = dir:gsub("/", ".") -- convierte "/" en "."
+	-- Usa vim.fs.relative para obtener ruta relativa segura
+	local rel = vim.fs.relative(app, { from = src })
+	-- Extrae solo el directorio (sin el nombre del archivo)
+	local dir = fn.fnamemodify(rel, ":h")
+	-- Convierte a paquete Java: com/example/demo → com.example.demo
+	local pkg = dir:gsub("/", ".")
+	-- Ruta absoluta del directorio base
 	local abs = fn.fnamemodify(src .. "/" .. dir, ":p")
+
 	return pkg, abs
 end
 
--- 2) Carga la plantilla desde "java_helper/templates/KIND.java"
+-- 2) Carga la plantilla desde "java_helper/templates/KIND.java.tpl"
 local function load_template(kind)
-	-- Ahora buscamos .java.tpl en lugar de .java
 	local pattern = "java_helper/templates/" .. kind .. ".java.tpl"
 	local files = api.nvim_get_runtime_file(pattern, false)
 	if #files == 0 then
@@ -41,16 +43,15 @@ local function load_template(kind)
 	return table.concat(fn.readfile(files[1]), "\n")
 end
 
--- 3) Reemplaza placeholders en la plantilla
+-- 3) Reemplaza placeholders en la plantilla (solo mayúsculas)
 local function render(tpl, vars)
 	return tpl:gsub("${PACKAGE}", vars.package):gsub("${NAME}", vars.name)
 end
 
--- 4) Crea archivo Java (o Test) usando un template
+-- 4) Crea archivo Java usando un template
 local function create_from_template(kind, sub_pkg, is_test)
 	local cwd = fn.getcwd()
 	local base_pkg, _ = find_base_package(cwd)
-
 	if not base_pkg then
 		vim.notify(
 			"nvim-java-helper: no se encontró Application.java ni Main.java en src/main/java",
@@ -59,18 +60,20 @@ local function create_from_template(kind, sub_pkg, is_test)
 		return
 	end
 
-	-- arma paquete completo y extrae nombre de clase
+	-- Construye el paquete completo: base_pkg.sub_pkg
 	local full_pkg = base_pkg == "" and sub_pkg or (base_pkg .. "." .. sub_pkg)
 	local parts = vim.split(full_pkg, "%.", { plain = true })
-	local name = parts[#parts]
-	table.remove(parts, #parts)
-	local pkg_path = table.concat(parts, "/")
+	local name = parts[#parts] -- nombre de la clase (último segmento)
+	table.remove(parts, #parts) -- elimina el nombre
+	local pkg_path = table.concat(parts, "/") -- ruta relativa: com/example/demo/user
+	local package = table.concat(parts, ".") -- paquete Java: com.example.demo.user
 
-	-- determina carpeta destino
+	-- Determina directorio destino
 	local root_dir = is_test and cwd .. "/src/test/java" or cwd .. "/src/main/java"
 	local target_dir = root_dir .. "/" .. pkg_path
 	fn.mkdir(target_dir, "p")
 
+	-- Ruta del archivo a crear
 	local file_path = target_dir .. "/" .. name .. ".java"
 	if fn.filereadable(file_path) == 1 then
 		vim.notify("nvim-java-helper: el archivo ya existe → " .. file_path, vim.log.levels.WARN)
@@ -78,11 +81,14 @@ local function create_from_template(kind, sub_pkg, is_test)
 		return
 	end
 
-	-- renderiza plantilla y escribe archivo
+	-- Carga y renderiza la plantilla
 	local tpl = load_template(kind)
-	tpl = render(tpl, { package = table.concat(parts, "."), name = name })
+	tpl = render(tpl, { package = package, name = name })
+
+	-- Escribe el archivo
 	fn.writefile(vim.split(tpl, "\n"), file_path)
 
+	-- Abre el archivo
 	api.nvim_command("edit " .. file_path)
 end
 
