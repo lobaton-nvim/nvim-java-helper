@@ -117,21 +117,36 @@ local function create_from_template(kind, sub_pkg, is_test)
 	api.nvim_command("edit " .. file_path)
 end
 
--- 5) Comandos con input interactivo
+-- 5) Crea una función que genera un prompt dinámico según el tipo
 local function create_input_command(kind, is_test)
+	-- Mapeo de tipo a mensaje personalizado
+	local prompts = {
+		Class = "Clase",
+		Interface = "Interface",
+		Enum = "Enum",
+		Record = "Record",
+		Annotation = "Annotación",
+		Test = "Test",
+	}
+
+	local title = prompts[kind] or kind
+	local prompt_text = "Crear nueva " .. title .. " (ej: user.User) > "
+
 	return function()
 		vim.ui.input({
-			prompt = "[" .. kind .. "] Clase (ej: user.User) > ",
+			prompt = prompt_text,
+			default = "",
 		}, function(input)
-			if input and input ~= "" then
-				create_from_template(kind, input, is_test)
-			else
-				vim.notify("nvim-java-helper: operación cancelada o entrada vacía", vim.log.levels.INFO)
+			if not input or vim.trim(input) == "" then
+				vim.notify("nvim-java-helper: operación cancelada o nombre vacío", vim.log.levels.WARN)
+				return
 			end
+			create_from_template(kind, input, is_test)
 		end)
 	end
 end
 
+-- Lista de comandos
 local commands = {
 	{ kind = "Class", is_test = false, cmd = "NewJavaClass" },
 	{ kind = "Interface", is_test = false, cmd = "NewJavaInterface" },
@@ -139,9 +154,9 @@ local commands = {
 	{ kind = "Annotation", is_test = false, cmd = "NewJavaAnnotation" },
 	{ kind = "Record", is_test = false, cmd = "NewJavaRecord" },
 	{ kind = "Test", is_test = true, cmd = "NewJavaTest" },
-	{ kind = "SpringBootApplication", is_test = false, cmd = "NewSpringBootApplication" },
 }
 
+-- Registra los comandos sin argumentos (abren input interactivo)
 for _, c in ipairs(commands) do
 	vim.api.nvim_create_user_command(c.cmd, create_input_command(c.kind, c.is_test), {
 		nargs = 0,
