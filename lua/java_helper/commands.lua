@@ -2,9 +2,8 @@ local api = vim.api
 local fn = vim.fn
 local config = require("java_helper").config
 
--- 1) Detecta paquete base desde *Application.java o *Main.java
+-- 1) Detecta paquete base desde *Application.java
 local function find_base_package(root)
-	-- override manual (desde setup)
 	if config.base_package or config.base_path then
 		local pkg = config.base_package or ""
 		local path = fn.fnamemodify(root .. "/" .. (config.base_path or "src/main/java"), ":p")
@@ -17,32 +16,26 @@ local function find_base_package(root)
 		apps = fn.globpath(src, "**/*Main.java", false, true)
 	end
 	if #apps == 0 then
-		vim.notify(
-			"nvim-java-helper: no se encontró *Application.java ni *Main.java en src/main/java",
-			vim.log.levels.ERROR
-		)
+		vim.notify("nvim-java-helper: no se encontró *Application.java ni *Main.java", vim.log.levels.ERROR)
 		return nil, nil
 	end
 
-	local app = apps[1]
+	local app = fn.resolve(apps[1])
 	local src_abs = fn.resolve(src)
-	local app_abs = fn.resolve(app)
 
-	-- Verifica que el archivo esté dentro de src/main/java
-	if not vim.startswith(app_abs, src_abs) then
+	if not vim.startswith(app, src_abs) then
 		return nil, nil
 	end
 
-	-- Extrae la ruta relativa después de src/main/java
-	local rel = app_abs:sub(#src_abs + 2) -- +2 para saltar la barra
-	local dir = fn.fnamemodify(rel, ":h") -- directorio del archivo
-	local pkg = dir:gsub("/", ".") -- convierte a paquete Java
+	local rel = app:sub(#src_abs + 2)
+	local dir = fn.fnamemodify(rel, ":h")
+	local pkg = dir:gsub("/", ".")
 	local abs = fn.fnamemodify(src .. "/" .. dir, ":p")
 
 	return pkg, abs
 end
 
--- 2) Carga la plantilla desde java_helper/templates/*.java.tpl
+-- 2) Carga plantilla
 local function load_template(kind)
 	local pattern = "java_helper/templates/" .. kind .. ".java.tpl"
 	local files = api.nvim_get_runtime_file(pattern, false)
@@ -52,26 +45,42 @@ local function load_template(kind)
 	return table.concat(fn.readfile(files[1]), "\n")
 end
 
--- 3) Reemplaza solo ${PACKAGE} y ${NAME} (mayúsculas)
+-- 3) Reemplaza placeholders
 local function render(tpl, vars)
 	return tpl:gsub("${PACKAGE}", vars.package):gsub("${NAME}", vars.name)
 end
 
--- 4) Crea la clase Java
+-- 4) Crea la clase
 local function create_from_template(kind, sub_pkg, is_test)
 	local cwd = fn.getcwd()
 	local base_pkg, _ = find_base_package(cwd)
 	if not base_pkg then
-		return -- ya se notificó en find_base_package
+		return
 	end
 
-	-- Construye el paquete completo: com.example.demo.user.User
+	-- Aseguramos que no haya espacios
+	sub_pkg = sub_pkg:gsub("^%s*(.-)%s*$", "%1")
+
+	-- Construye el paquete completo
 	local full_pkg = base_pkg == "" and sub_pkg or (base_pkg .. "." .. sub_pkg)
-	local parts = fn.split(full_pkg, "%.") -- divide por punto literal
-	local name = parts[#parts] -- nombre de clase: User
-	parts[#parts] = nil -- remueve el nombre
-	local package = table.concat(parts, ".") -- paquete: com.example.demo.user
-	local pkg_path = table.concat(parts, "/") -- ruta: com/example/demo/user
+
+	-- Divide manualmente por punto
+	local parts = {}
+	for part in full_pkg:gmatch("[^%.]+") do
+		table.insert(parts, part)
+	end
+
+	-- Nombre de clase = última parte
+	local name = parts[#parts]
+	if not name or name == "" then
+		vim.notify("nvim-java-helper: nombre de clase inválido", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Remueve el nombre
+	parts[#parts] = nil
+	local package = table.concat(parts, ".")
+	local pkg_path = table.concat(parts, "/")
 
 	local root_dir = is_test and cwd .. "/src/test/java" or cwd .. "/src/main/java"
 	local target_dir = root_dir .. "/" .. pkg_path
