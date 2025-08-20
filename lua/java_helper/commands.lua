@@ -21,13 +21,29 @@ local function find_base_package(root)
 	end
 
 	local app = apps[1]
-	-- Usa vim.fs.relative para obtener ruta relativa segura
-	local rel = vim.fs.relative(app, { from = src })
-	-- Extrae solo el directorio (sin el nombre del archivo)
-	local dir = fn.fnamemodify(rel, ":h")
-	-- Convierte a paquete Java: com/example/demo → com.example.demo
+
+	-- Aseguramos rutas absolutas y normalizadas
+	local src_real = fn.resolve(src)
+	local app_real = fn.resolve(app)
+
+	-- Extraemos la parte relativa manualmente
+	local src_parts = vim.split(src_real, "[/\\]", { plain = true })
+	local app_parts = vim.split(app_real, "[/\\]", { plain = true })
+
+	-- Encontramos el índice donde divergen
+	local i = 1
+	while i <= #src_parts and i <= #app_parts and src_parts[i] == app_parts[i] do
+		i = i + 1
+	end
+
+	-- Partes relativas desde src
+	local rel_parts = {}
+	for j = i, #app_parts - 1 do -- -1 para excluir el nombre del archivo
+		table.insert(rel_parts, app_parts[j])
+	end
+
+	local dir = table.concat(rel_parts, "/")
 	local pkg = dir:gsub("/", ".")
-	-- Ruta absoluta del directorio base
 	local abs = fn.fnamemodify(src .. "/" .. dir, ":p")
 
 	return pkg, abs
