@@ -125,7 +125,6 @@ local function create_input_command(kind, is_test)
 		Interface = "Interface",
 		Enum = "Enum",
 		Record = "Record",
-		Annotation = "Annotación",
 		Test = "Test",
 	}
 
@@ -151,7 +150,6 @@ local commands = {
 	{ kind = "Class", is_test = false, cmd = "NewJavaClass" },
 	{ kind = "Interface", is_test = false, cmd = "NewJavaInterface" },
 	{ kind = "Enum", is_test = false, cmd = "NewJavaEnum" },
-	{ kind = "Annotation", is_test = false, cmd = "NewJavaAnnotation" },
 	{ kind = "Record", is_test = false, cmd = "NewJavaRecord" },
 	{ kind = "Test", is_test = true, cmd = "NewJavaTest" },
 }
