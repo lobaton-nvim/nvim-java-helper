@@ -117,7 +117,21 @@ local function create_from_template(kind, sub_pkg, is_test)
 	api.nvim_command("edit " .. file_path)
 end
 
--- 5) Registra comandos
+-- 5) Comandos con input interactivo
+local function create_input_command(kind, is_test)
+	return function()
+		vim.ui.input({
+			prompt = "[" .. kind .. "] Clase (ej: user.User) > ",
+		}, function(input)
+			if input and input ~= "" then
+				create_from_template(kind, input, is_test)
+			else
+				vim.notify("nvim-java-helper: operación cancelada o entrada vacía", vim.log.levels.INFO)
+			end
+		end)
+	end
+end
+
 local commands = {
 	{ kind = "Class", is_test = false, cmd = "NewJavaClass" },
 	{ kind = "Interface", is_test = false, cmd = "NewJavaInterface" },
@@ -129,10 +143,8 @@ local commands = {
 }
 
 for _, c in ipairs(commands) do
-	vim.api.nvim_create_user_command(c.cmd, function(opts)
-		create_from_template(c.kind, opts.args, c.is_test)
-	end, {
-		nargs = 1,
-		desc = "nvim-java-helper: crea un(a) " .. c.kind .. " en el paquete detectado",
+	vim.api.nvim_create_user_command(c.cmd, create_input_command(c.kind, c.is_test), {
+		nargs = 0,
+		desc = "nvim-java-helper: crea un(a) " .. c.kind .. " con entrada interactiva",
 	})
 end
