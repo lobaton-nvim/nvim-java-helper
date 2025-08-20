@@ -35,13 +35,15 @@ local function find_base_package(root)
 	return pkg, abs
 end
 
--- 2) Carga plantilla
+-- 2) Carga la plantilla
 local function load_template(kind)
 	local pattern = "java_helper/templates/" .. kind .. ".java.tpl"
 	local files = api.nvim_get_runtime_file(pattern, false)
 	if #files == 0 then
 		error("nvim-java-helper: plantilla no encontrada -> " .. kind)
 	end
+	-- ✅ Corregido: \n en lugar de "
+
 	return table.concat(fn.readfile(files[1]), "\n")
 end
 
@@ -58,13 +60,13 @@ local function create_from_template(kind, sub_pkg, is_test)
 		return
 	end
 
-	-- Aseguramos que no haya espacios
+	-- Aseguramos limpieza
 	sub_pkg = sub_pkg:gsub("^%s*(.-)%s*$", "%1")
 
-	-- Construye el paquete completo
+	-- ✅ Usa el paquete base detectado
 	local full_pkg = base_pkg == "" and sub_pkg or (base_pkg .. "." .. sub_pkg)
 
-	-- Divide manualmente por punto
+	-- ✅ Divide manualmente por punto (seguro)
 	local parts = {}
 	for part in full_pkg:gmatch("[^%.]+") do
 		table.insert(parts, part)
@@ -77,16 +79,27 @@ local function create_from_template(kind, sub_pkg, is_test)
 		return
 	end
 
-	-- Remueve el nombre
+	-- Remueve nombre para obtener paquete
 	parts[#parts] = nil
 	local package = table.concat(parts, ".")
 	local pkg_path = table.concat(parts, "/")
 
+	-- Directorio destino
 	local root_dir = is_test and cwd .. "/src/test/java" or cwd .. "/src/main/java"
 	local target_dir = root_dir .. "/" .. pkg_path
 	fn.mkdir(target_dir, "p")
 
-	local file_path = target_dir .. "/" .. name .. ".java"
+	-- Nombre del archivo
+	local file_name = name
+
+	-- Para tests: User -> UserTest
+	if is_test then
+		if not name:match("Test$") then
+			file_name = name .. "Test"
+		end
+	end
+
+	local file_path = target_dir .. "/" .. file_name .. ".java"
 
 	if fn.filereadable(file_path) == 1 then
 		vim.notify("nvim-java-helper: el archivo ya existe → " .. file_path, vim.log.levels.WARN)
@@ -95,8 +108,11 @@ local function create_from_template(kind, sub_pkg, is_test)
 	end
 
 	local tpl = load_template(kind)
-	tpl = render(tpl, { package = package, name = name })
+	-- Renderiza con el nombre real de la clase (User o UserTest)
+	local class_name = is_test and file_name or name
+	tpl = render(tpl, { package = package, name = class_name })
 
+	-- ✅ Usa \n
 	fn.writefile(vim.split(tpl, "\n"), file_path)
 	api.nvim_command("edit " .. file_path)
 end
