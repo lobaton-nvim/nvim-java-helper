@@ -16,7 +16,13 @@ local function find_base_package(root)
 		apps = fn.globpath(src, "**/*Main.java", false, true)
 	end
 	if #apps == 0 then
-		vim.notify("nvim-java-helper: no se encontró *Application.java ni *Main.java", vim.log.levels.ERROR)
+		apps = fn.globpath(src, "**/*App.java", false, true) -- ← Nuevo: soporte para App.java
+	end
+	if #apps == 0 then
+		vim.notify(
+			"nvim-java-helper: no se encontró *Application.java, *Main.java ni *App.java en src/main/java",
+			vim.log.levels.ERROR
+		)
 		return nil, nil
 	end
 
