@@ -4,7 +4,7 @@ local config = require("java_helper").config
 
 -- 1) Detecta paquete base y directorio a partir de *Application.java o *Main.java
 local function find_base_package(root)
-	-- override manual (desde setup)
+	-- override manual
 	if config.base_package or config.base_path then
 		local pkg = config.base_package or ""
 		local path = fn.fnamemodify(root .. "/" .. (config.base_path or "src/main/java"), ":p")
@@ -17,33 +17,25 @@ local function find_base_package(root)
 		apps = fn.globpath(src, "**/*Main.java", false, true)
 	end
 	if #apps == 0 then
+		vim.notify(
+			"nvim-java-helper: no se encontró *Application.java ni *Main.java en src/main/java",
+			vim.log.levels.ERROR
+		)
 		return nil, nil
 	end
 
-	local app = apps[1]
+	local app = fn.resolve(apps[1]) -- ruta absoluta limpia
+	local src_abs = fn.resolve(src) -- src como ruta absoluta
 
-	-- Aseguramos rutas absolutas y normalizadas
-	local src_real = fn.resolve(src)
-	local app_real = fn.resolve(app)
-
-	-- Extraemos la parte relativa manualmente
-	local src_parts = vim.split(src_real, "[/\\]", { plain = true })
-	local app_parts = vim.split(app_real, "[/\\]", { plain = true })
-
-	-- Encontramos el índice donde divergen
-	local i = 1
-	while i <= #src_parts and i <= #app_parts and src_parts[i] == app_parts[i] do
-		i = i + 1
+	-- Verifica que app esté dentro de src
+	if not vim.startswith(app, src_abs) then
+		return nil, nil
 	end
 
-	-- Partes relativas desde src
-	local rel_parts = {}
-	for j = i, #app_parts - 1 do -- -1 para excluir el nombre del archivo
-		table.insert(rel_parts, app_parts[j])
-	end
-
-	local dir = table.concat(rel_parts, "/")
-	local pkg = dir:gsub("/", ".")
+	-- Extrae la parte relativa: desde después de src_abs
+	local rel = app:sub(#src_abs + 2) -- +2 para saltar la barra
+	local dir = fn.fnamemodify(rel, ":h") -- directorio del archivo
+	local pkg = dir:gsub("/", ".") -- convierte a paquete Java
 	local abs = fn.fnamemodify(src .. "/" .. dir, ":p")
 
 	return pkg, abs
